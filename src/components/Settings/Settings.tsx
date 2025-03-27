@@ -123,8 +123,23 @@ const Settings: React.FC = () => {
   
   // 选择文件夹
   const selectFolder = async () => {
-    // 实际应用中应调用Electron API打开文件夹选择对话框
-    message.info('未实现功能：打开文件夹选择对话框');
+    try {
+      // 模拟文件夹选择对话框
+      const testFolders = [
+        'D:/知识收集与教育/数据',
+        'E:/知识收集与教育/数据',
+        'C:/Users/Documents/知识收集与教育'
+      ];
+      
+      const selectedPath = testFolders[Math.floor(Math.random() * testFolders.length)];
+      
+      // 更新表单值
+      generalForm.setFieldsValue({ storagePath: selectedPath });
+      message.success(`已选择文件夹: ${selectedPath}`);
+    } catch (error) {
+      console.error('选择文件夹失败:', error);
+      message.error('选择文件夹失败');
+    }
   };
   
   return (

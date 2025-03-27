@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Card, 
   Input, 
@@ -7,7 +7,6 @@ import {
   Tag, 
   Space, 
   Drawer, 
-  Tabs, 
   Tree, 
   Empty, 
   Tooltip,
@@ -16,7 +15,10 @@ import {
   message,
   notification,
   Row,
-  Col
+  Col,
+  Spin,
+  Descriptions,
+  Modal
 } from 'antd';
 import { 
   SearchOutlined, 
@@ -28,7 +30,8 @@ import {
   ExportOutlined,
   ImportOutlined,
   EyeOutlined,
-  NodeIndexOutlined
+  NodeIndexOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import type { TreeDataNode } from 'antd';
 import KnowledgeAnalysisPanel from '../KnowledgeAnalysis/KnowledgeAnalysisPanel';
@@ -36,7 +39,6 @@ import { getKnowledgePoints, deleteKnowledgePoint, updateKnowledgePoint } from '
 import { KnowledgePoint as StoredKnowledgePoint } from '../../services/extraction';
 
 const { Search } = Input;
-const { TabPane } = Tabs;
 const { Text, Title, Paragraph } = Typography;
 
 // 知识点类型定义
@@ -172,19 +174,19 @@ const KnowledgeBase: React.FC = () => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedKnowledge, setSelectedKnowledge] = useState<KnowledgeItem | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // 从存储服务获取知识点数据
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
   
   // 加载数据
-  useEffect(() => {
-    loadKnowledgeItems();
-  }, []);
-  
-  // 从存储加载知识点
-  const loadKnowledgeItems = () => {
+  const loadKnowledgeItems = useCallback(() => {
+    setLoading(true);
     try {
       const storedPoints = getKnowledgePoints();
+      
+      console.log(`加载了 ${storedPoints.length} 个知识点`);
       
       // 转换格式
       const formattedItems = storedPoints.map(point => {
@@ -211,8 +213,47 @@ const KnowledgeBase: React.FC = () => {
     } catch (error) {
       console.error('加载知识点失败:', error);
       message.error('加载知识点数据失败');
+    } finally {
+      setLoading(false);
     }
+  }, []);
+  
+  // 初始加载
+  useEffect(() => {
+    loadKnowledgeItems();
+    
+    // 设置定时刷新（每30秒）
+    const interval = setInterval(() => {
+      loadKnowledgeItems();
+    }, 30000);
+    
+    // 添加全局事件监听器
+    const handleDataUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.type === 'fileProcessed') {
+        console.log('知识库收到文件处理完成事件:', customEvent.detail);
+        loadKnowledgeItems();
+      }
+    };
+    
+    window.addEventListener('dataUpdated', handleDataUpdated);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dataUpdated', handleDataUpdated);
+    };
+  }, [loadKnowledgeItems]);
+  
+  // 手动刷新
+  const handleRefresh = () => {
+    loadKnowledgeItems();
+    message.success('知识库数据已刷新');
   };
+  
+  // 同步数据变化
+  useEffect(() => {
+    loadKnowledgeItems();
+  }, [refreshTrigger, loadKnowledgeItems]);
   
   // 打开知识详情抽屉
   const showKnowledgeDetail = (item: KnowledgeItem) => {
@@ -257,6 +298,9 @@ const KnowledgeBase: React.FC = () => {
         if (selectedKnowledge?.id === id) {
           onDrawerClose();
         }
+        
+        // 触发刷新
+        setRefreshTrigger(prev => prev + 1);
       } else {
         message.error('删除知识点失败');
       }
@@ -284,6 +328,22 @@ const KnowledgeBase: React.FC = () => {
     return matchesSearch && matchesCategory && matchesTags;
   });
   
+  // 计算所有标签的使用次数
+  const allTags = knowledgeItems.reduce((tags, item) => {
+    item.tags.forEach(tag => {
+      if (!tags[tag]) {
+        tags[tag] = 0;
+      }
+      tags[tag]++;
+    });
+    return tags;
+  }, {} as Record<string, number>);
+  
+  // 转换为排序后的标签列表
+  const sortedTags = Object.entries(allTags)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+  
   // 处理知识点关联分析
   const handleKnowledgeAnalysis = () => {
     if (filteredKnowledgeItems.length < 2) {
@@ -301,250 +361,232 @@ const KnowledgeBase: React.FC = () => {
     setShowAnalysis(false);
   };
   
+  // 添加数据更新监听
+  useEffect(() => {
+    // 监听全局数据更新事件
+    const handleDataUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.type === 'fileProcessed') {
+        console.log('KnowledgeBase收到文件处理完成事件，刷新数据');
+        loadKnowledgeItems();
+      }
+    };
+    
+    window.addEventListener('dataUpdated', handleDataUpdate);
+    
+    return () => {
+      window.removeEventListener('dataUpdated', handleDataUpdate);
+    };
+  }, [loadKnowledgeItems]);
+  
   return (
-    <div className="knowledge-base-container">
-      <Row gutter={16} style={{ height: '100%' }}>
-        {/* 左侧边栏 */}
-        <Col span={6} style={{ height: '100%' }}>
-          <Card title="分类与标签" style={{ marginBottom: 16 }}>
-            <Tabs defaultActiveKey="category">
-              <TabPane tab="分类" key="category">
-                <Tree
-                  treeData={categoryTreeData}
-                  defaultExpandAll
-                  onSelect={handleCategorySelect}
-                  selectedKeys={selectedCategory ? [selectedCategory] : []}
-                />
-              </TabPane>
-              <TabPane tab="标签" key="tags">
-                <Space wrap>
-                  {tagList.map(tag => (
-                    <Tag 
-                      key={tag.name}
-                      color={selectedTags.includes(tag.name) ? 'blue' : 'default'}
-                      style={{ cursor: 'pointer', marginBottom: 8 }}
-                      onClick={() => handleTagClick(tag.name)}
-                    >
-                      {tag.name} ({tag.count})
-                    </Tag>
-                  ))}
-                </Space>
-              </TabPane>
-            </Tabs>
-          </Card>
-        </Col>
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* 左侧边栏 */}
+      <Card 
+        style={{ width: 250, marginRight: 16, overflow: 'auto' }}
+        title="知识库"
+        extra={
+          <Button 
+            type="text" 
+            icon={<ReloadOutlined />} 
+            onClick={handleRefresh}
+            loading={loading}
+          />
+        }
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Search
+            placeholder="搜索知识点"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            onSearch={handleSearch}
+          />
+        </div>
         
-        {/* 主内容区域 */}
-        <Col span={18} style={{ height: '100%' }}>
-          <Card 
-            title="知识库" 
-            extra={
-              <Space>
-                <Input.Search
-                  placeholder="搜索知识点"
-                  value={searchText}
-                  onChange={e => setSearchText(e.target.value)}
-                  style={{ width: 300 }}
-                />
-                <Button 
-                  type="primary" 
-                  icon={<PlusOutlined />} 
-                  onClick={() => setSelectedKnowledge(null)}
-                >
-                  添加知识点
-                </Button>
+        <Divider orientation="left">分类</Divider>
+        <Tree
+          treeData={categoryTreeData}
+          defaultExpandAll
+          onSelect={handleCategorySelect}
+        />
+        
+        <Divider orientation="left">标签</Divider>
+        <div style={{ marginBottom: 16 }}>
+          {sortedTags.map(tag => (
+            <Tag 
+              key={tag.name}
+              color={selectedTags.includes(tag.name) ? 'blue' : undefined}
+              style={{ marginBottom: 8, cursor: 'pointer' }}
+              onClick={() => handleTagClick(tag.name)}
+            >
+              {tag.name} ({tag.count})
+            </Tag>
+          ))}
+        </div>
+      </Card>
+      
+      {/* 右侧内容区 */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        <Card
+          title={
+            <Space>
+              <span>知识点列表</span>
+              <Tag color="blue">{filteredKnowledgeItems.length} 个结果</Tag>
+            </Space>
+          }
+          extra={
+            <Space>
+              <Tooltip title="分析知识关系">
                 <Button 
                   icon={<NodeIndexOutlined />} 
-                  onClick={handleKnowledgeAnalysis}
-                  disabled={filteredKnowledgeItems.length < 2}
+                  onClick={() => setShowAnalysis(true)}
                 >
-                  关联分析
+                  知识关联分析
                 </Button>
-              </Space>
-            }
-            style={{ marginBottom: 16 }}
-          >
-            <div style={{ marginBottom: 16 }}>
-              {(searchText || selectedCategory || selectedTags.length > 0) && (
-                <div style={{ marginTop: 8 }}>
-                  <Space wrap>
-                    {searchText && (
-                      <Tag closable onClose={() => setSearchText('')}>
-                        搜索: {searchText}
-                      </Tag>
-                    )}
-                    {selectedCategory && (
-                      <Tag closable onClose={() => setSelectedCategory(null)}>
-                        分类: {categoryTreeData.find(c => c.key === selectedCategory)?.title || 
-                          categoryTreeData.flatMap(c => c.children || []).find(sc => sc.key === selectedCategory)?.title}
-                      </Tag>
-                    )}
-                    {selectedTags.map(tag => (
-                      <Tag 
-                        key={tag} 
-                        closable 
-                        onClose={() => setSelectedTags(prev => prev.filter(t => t !== tag))}
-                      >
-                        标签: {tag}
-                      </Tag>
-                    ))}
-                    <Button 
-                      type="link" 
-                      onClick={() => {
-                        setSearchText('');
-                        setSelectedCategory(null);
-                        setSelectedTags([]);
-                      }}
-                    >
-                      清除全部
-                    </Button>
-                  </Space>
-                </div>
-              )}
-            </div>
-            
+              </Tooltip>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+              >
+                添加知识点
+              </Button>
+            </Space>
+          }
+        >
+          <Spin spinning={loading}>
             {filteredKnowledgeItems.length > 0 ? (
               <List
                 itemLayout="vertical"
-                size="large"
+                dataSource={filteredKnowledgeItems}
                 pagination={{
                   pageSize: 10,
                   showSizeChanger: true,
-                  pageSizeOptions: ['5', '10', '20', '50']
+                  pageSizeOptions: ['10', '20', '50'],
                 }}
-                dataSource={filteredKnowledgeItems}
                 renderItem={item => (
                   <List.Item
                     key={item.id}
                     actions={[
-                      <Tooltip title="查看详情">
-                        <Button 
-                          type="link" 
-                          icon={<EyeOutlined />} 
-                          onClick={() => showKnowledgeDetail(item)}
-                        >
-                          查看
-                        </Button>
-                      </Tooltip>,
-                      <Tooltip title="编辑">
-                        <Button 
-                          type="link" 
-                          icon={<EditOutlined />}
-                        >
-                          编辑
-                        </Button>
-                      </Tooltip>,
-                      <Tooltip title="删除">
-                        <Button 
-                          type="link" 
-                          danger 
-                          icon={<DeleteOutlined />}
-                          onClick={() => handleDeleteKnowledge(item.id)}
-                        >
-                          删除
-                        </Button>
-                      </Tooltip>
+                      <Button 
+                        type="link" 
+                        size="small" 
+                        icon={<EyeOutlined />}
+                        onClick={() => showKnowledgeDetail(item)}
+                      >
+                        查看详情
+                      </Button>,
+                      <Button 
+                        type="link" 
+                        size="small" 
+                        icon={<EditOutlined />}
+                      >
+                        编辑
+                      </Button>,
+                      <Button 
+                        type="link" 
+                        danger 
+                        size="small" 
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleDeleteKnowledge(item.id)}
+                      >
+                        删除
+                      </Button>
                     ]}
                     extra={
-                      <div>
-                        <div style={{ marginBottom: 4 }}>
-                          <BookOutlined /> 来源: {item.source.fileName}
-                        </div>
-                        <div>
-                          <TagOutlined /> 位置: {item.source.location}
-                        </div>
-                      </div>
+                      <Space direction="vertical">
+                        {renderImportanceTag(item.importance)}
+                        <Space>
+                          {item.tags.slice(0, 3).map(tag => (
+                            <Tag key={tag} color="blue">{tag}</Tag>
+                          ))}
+                          {item.tags.length > 3 && <Tag>+{item.tags.length - 3}</Tag>}
+                        </Space>
+                      </Space>
                     }
                   >
                     <List.Item.Meta
-                      title={
-                        <Space>
-                          <Text strong>{item.title}</Text>
-                          {renderImportanceTag(item.importance)}
-                        </Space>
-                      }
+                      title={<a onClick={() => showKnowledgeDetail(item)}>{item.title}</a>}
                       description={
-                        <Space wrap>
-                          {item.tags.map(tag => (
-                            <Tag key={tag}>{tag}</Tag>
-                          ))}
-                        </Space>
+                        <Text type="secondary">
+                          来源：{item.source.fileName} ({item.source.location}) | 
+                          分类：{item.category} | 
+                          创建时间：{new Date(item.createdAt).toLocaleString()}
+                        </Text>
                       }
                     />
-                    <Paragraph 
-                      ellipsis={{ rows: 2, expandable: false }}
-                      style={{ marginBottom: 0 }}
-                    >
+                    <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }}>
                       {item.content}
                     </Paragraph>
                   </List.Item>
                 )}
               />
             ) : (
-              <Empty description="没有找到相关知识点" />
+              <Empty description="没有找到符合条件的知识点" />
             )}
-          </Card>
-          
-          {/* 如果显示关联分析，渲染知识点关联分析面板 */}
-          {showAnalysis && (
-            <Card 
-              title="知识点关联分析" 
-              extra={
-                <Button type="link" onClick={handleCloseAnalysis}>关闭分析</Button>
-              }
-            >
-              <KnowledgeAnalysisPanel knowledgePoints={filteredKnowledgeItems} />
-            </Card>
-          )}
-        </Col>
-      </Row>
+          </Spin>
+        </Card>
+      </div>
       
       {/* 知识点详情抽屉 */}
       <Drawer
-        title={selectedKnowledge ? "知识点详情" : "添加知识点"}
-        placement="right"
+        title="知识点详情"
+        width={500}
+        open={drawerVisible}
         onClose={onDrawerClose}
-        open={selectedKnowledge !== null}
-        width={600}
+        footer={
+          <Space>
+            <Button onClick={onDrawerClose}>关闭</Button>
+            <Button type="primary">编辑</Button>
+          </Space>
+        }
       >
         {selectedKnowledge && (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <Space wrap>
-                {renderImportanceTag(selectedKnowledge.importance)}
-                {selectedKnowledge.tags.map(tag => (
-                  <Tag key={tag}>{tag}</Tag>
-                ))}
-              </Space>
-            </div>
-            
-            <Title level={5}>内容</Title>
-            <Paragraph>{selectedKnowledge.content}</Paragraph>
-            
-            <Divider />
-            
-            <Title level={5}>来源信息</Title>
-            <Paragraph>
-              <ul>
-                <li><Text strong>文件名：</Text>{selectedKnowledge.source.fileName}</li>
-                <li><Text strong>文件类型：</Text>{selectedKnowledge.source.fileType.toUpperCase()}</li>
-                <li><Text strong>位置：</Text>{selectedKnowledge.source.location}</li>
-              </ul>
+          <div>
+            <Title level={4}>{selectedKnowledge.title}</Title>
+            <Paragraph style={{ marginBottom: 16 }}>
+              {selectedKnowledge.content}
             </Paragraph>
             
             <Divider />
             
-            <div style={{ marginTop: 8 }}>
-              <Text type="secondary">创建时间：{new Date(selectedKnowledge.createdAt).toLocaleString()}</Text>
-              {selectedKnowledge.updatedAt && (
-                <div>
-                  <Text type="secondary">更新时间：{new Date(selectedKnowledge.updatedAt).toLocaleString()}</Text>
-                </div>
-              )}
-            </div>
-          </>
+            <Descriptions column={1}>
+              <Descriptions.Item label="来源">
+                {selectedKnowledge.source.fileName} ({selectedKnowledge.source.fileType})
+              </Descriptions.Item>
+              <Descriptions.Item label="位置">
+                {selectedKnowledge.source.location}
+              </Descriptions.Item>
+              <Descriptions.Item label="分类">
+                {selectedKnowledge.category}
+              </Descriptions.Item>
+              <Descriptions.Item label="标签">
+                <Space>
+                  {selectedKnowledge.tags.map(tag => (
+                    <Tag key={tag}>{tag}</Tag>
+                  ))}
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="重要程度">
+                {renderImportanceTag(selectedKnowledge.importance)}
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">
+                {new Date(selectedKnowledge.createdAt).toLocaleString()}
+              </Descriptions.Item>
+            </Descriptions>
+          </div>
         )}
       </Drawer>
+      
+      {/* 知识分析模态框 */}
+      <Modal
+        title="知识关联分析"
+        open={showAnalysis}
+        onCancel={() => setShowAnalysis(false)}
+        width={800}
+        footer={null}
+      >
+        <KnowledgeAnalysisPanel />
+      </Modal>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Form,
@@ -166,7 +166,11 @@ const mockPapers: Paper[] = [
   }
 ];
 
-const QuestionGenerator: React.FC = () => {
+interface QuestionGeneratorProps {
+  fileId?: string;
+}
+
+const QuestionGenerator: React.FC<QuestionGeneratorProps> = ({ fileId }) => {
   // 状态管理
   const [form] = Form.useForm();
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
@@ -175,6 +179,15 @@ const QuestionGenerator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [currentPaper, setCurrentPaper] = useState<Paper | null>(null);
+
+  // 当fileId变化时，加载对应文件的知识点
+  useEffect(() => {
+    if (fileId) {
+      // 根据fileId加载相关知识点
+      console.log(`加载文件 ${fileId} 的知识点`);
+      // 这里应该调用加载知识点的逻辑
+    }
+  }, [fileId]);
 
   // 生成题目
   const handleGenerateQuestions = async (values: any) => {

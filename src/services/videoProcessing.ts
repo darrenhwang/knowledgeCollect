@@ -1,4 +1,4 @@
-import { notification } from 'antd';
+import { notification, message } from 'antd';
 import { KnowledgePoint, FileType } from './extraction';
 
 // 视频处理状态
@@ -492,4 +492,32 @@ export const processVideoFile = async (
       summary: '',
     };
   }
+};
+
+// 模拟进度函数
+const simulateProgress = async (targetProgress: number, onProgress?: ProgressCallback): Promise<void> => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      if (onProgress) {
+        onProgress({
+          status: VideoProcessingStatus.ANALYZING_CONTENT,
+          progress: targetProgress,
+          currentStep: `处理进度 ${targetProgress}%`
+        });
+      }
+      resolve();
+    }, 800); // 每步操作模拟800毫秒
+  });
+};
+
+// 视频缩略图生成函数（模拟）
+export const generateVideoThumbnail = async (filePath: string): Promise<string> => {
+  console.log('生成视频缩略图:', filePath);
+  
+  // 这里应该调用实际生成缩略图的代码
+  // 在模拟环境中，我们返回一个占位图像URL
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // 返回模拟的缩略图URL
+  return 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90"><rect width="160" height="90" fill="%231890ff"/><text x="80" y="45" font-family="Arial" font-size="12" text-anchor="middle" fill="white">视频缩略图</text></svg>';
 }; 

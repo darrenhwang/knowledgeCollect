@@ -1,58 +1,75 @@
-import React from 'react';
-import { Layout, Typography, Card, Tabs } from 'antd';
-import { BookOutlined, AppstoreOutlined, SettingOutlined, FileTextOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Tabs } from 'antd';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './components/Dashboard/Dashboard';
 import FileManager from './components/FileManager/FileManager';
-
-const { Header, Content, Footer } = Layout;
-const { Title, Text } = Typography;
-const { TabPane } = Tabs;
+import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
+import QuestionGenerator from './components/QuestionGenerator/QuestionGenerator';
+import Settings from './components/Settings/Settings';
+import './App.css';
 
 const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [fileId, setFileId] = useState<string | undefined>(undefined);
+
+  // 监听自定义事件，用于组件间通信
+  useEffect(() => {
+    const handleSwitchTab = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { tab, fileId } = customEvent.detail;
+      
+      if (tab) {
+        setActiveTab(tab);
+      }
+      
+      if (fileId !== undefined) {
+        setFileId(fileId);
+      }
+    };
+    
+    window.addEventListener('switchTab', handleSwitchTab);
+    
+    return () => {
+      window.removeEventListener('switchTab', handleSwitchTab);
+    };
+  }, []);
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ background: '#fff', paddingInline: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <BookOutlined style={{ fontSize: '24px', marginRight: 16 }} />
-          <Title level={3} style={{ margin: 0 }}>知识收集和教育辅助系统</Title>
-        </div>
-      </Header>
-      <Content style={{ padding: '24px', background: '#f0f2f5' }}>
-        <Card>
-          <Tabs defaultActiveKey="1">
-            <TabPane 
-              tab={<span><AppstoreOutlined />仪表盘</span>} 
-              key="1"
-            >
-              <Dashboard />
-            </TabPane>
-            <TabPane 
-              tab={<span><FileTextOutlined />文件管理</span>} 
-              key="2"
-            >
-              <FileManager />
-            </TabPane>
-            <TabPane 
-              tab={<span><BookOutlined />知识库</span>} 
-              key="3"
-            >
-              <div style={{ padding: 20 }}>
-                <Text>知识库功能展示</Text>
-              </div>
-            </TabPane>
-            <TabPane 
-              tab={<span><SettingOutlined />设置</span>} 
-              key="4"
-            >
-              <div style={{ padding: 20 }}>
-                <Text>设置功能展示</Text>
-              </div>
-            </TabPane>
-          </Tabs>
-        </Card>
-      </Content>
-      <Footer style={{ textAlign: 'center' }}>知识收集和教育辅助系统 ©2023</Footer>
-    </Layout>
+    <Router>
+      <div className="app-container">
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'dashboard',
+              label: '仪表盘',
+              children: <Dashboard />
+            },
+            {
+              key: 'files',
+              label: '文件管理',
+              children: <FileManager highlightFileId={activeTab === 'files' ? fileId : undefined} />
+            },
+            {
+              key: 'knowledge',
+              label: '知识库',
+              children: <KnowledgeBase />
+            },
+            {
+              key: 'questions',
+              label: '问题生成',
+              children: <QuestionGenerator fileId={activeTab === 'questions' ? fileId : undefined} />
+            },
+            {
+              key: 'settings',
+              label: '设置',
+              children: <Settings />
+            }
+          ]}
+        />
+      </div>
+    </Router>
   );
 };
 

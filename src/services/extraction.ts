@@ -47,7 +47,59 @@ export interface ProcessResult {
 
 // 获取文件类型
 export const getFileType = (filePath: string): FileType => {
-  const extension = filePath.split('.').pop()?.toLowerCase() || '';
+  // 检查路径是否是有效字符串
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('无效的文件路径:', filePath);
+    return FileType.OTHER;
+  }
+  
+  // 移除查询参数和哈希部分
+  let cleanPath = filePath;
+  try {
+    // 如果是blob URL或http URL，去除查询参数
+    if (filePath.startsWith('blob:') || filePath.startsWith('http')) {
+      const url = new URL(filePath);
+      cleanPath = url.pathname;
+    }
+  } catch (e) {
+    // URL解析失败，继续使用原始路径
+    console.log('URL解析失败，使用原始路径:', e);
+  }
+  
+  // 尝试从文件名中获取扩展名
+  let extension = '';
+  
+  // 先尝试从路径中获取最后一部分作为文件名
+  const fileName = cleanPath.split(/[/\\]/).pop() || '';
+  
+  // 检查文件名是否包含扩展名
+  if (fileName.includes('.')) {
+    extension = fileName.split('.').pop()?.toLowerCase() || '';
+  } else {
+    // 对于没有扩展名的情况，尝试从文件名中识别类型
+    const lowerFileName = fileName.toLowerCase();
+    
+    if (lowerFileName.includes('pdf')) {
+      return FileType.PDF;
+    } else if (lowerFileName.includes('ppt')) {
+      return FileType.PPT;
+    } else if (
+      lowerFileName.includes('video') || 
+      lowerFileName.includes('mp4') || 
+      lowerFileName.includes('avi') || 
+      lowerFileName.includes('mov')
+    ) {
+      return FileType.VIDEO;
+    }
+    
+    // 如果是UUID格式或复杂ID，则返回OTHER
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fileName)) {
+      console.log('检测到UUID格式文件名，无法确定类型:', fileName);
+      return FileType.OTHER;
+    }
+  }
+  
+  console.log(`文件路径: ${filePath}, 提取的扩展名: ${extension}`);
   
   switch (extension) {
     case 'pdf':
@@ -82,6 +134,7 @@ export const getFileType = (filePath: string): FileType => {
     case 'md':
       return FileType.TEXT;
     default:
+      console.log(`未识别的扩展名: ${extension}, 完整路径: ${filePath}`);
       return FileType.OTHER;
   }
 };
@@ -180,7 +233,25 @@ export const processVideoFile = async (filePath: string): Promise<KnowledgePoint
 export const processFile = async (filePath: string): Promise<ProcessResult> => {
   const fileName = filePath.split(/[/\\]/).pop() || '';
   const fileId = `file-${Date.now()}`;
-  const fileType = getFileType(filePath);
+  let fileType = getFileType(filePath);
+  
+  console.log(`处理文件: ${fileName}, 检测类型: ${fileType}`);
+  
+  // 如果文件类型是OTHER，尝试根据文件名猜测类型
+  if (fileType === FileType.OTHER) {
+    // 尝试从文件名获取扩展名
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    if (extension === 'pdf') {
+      fileType = FileType.PDF;
+      console.log(`根据文件名重新判断类型为: PDF`);
+    } else if (extension === 'ppt' || extension === 'pptx') {
+      fileType = FileType.PPT;
+      console.log(`根据文件名重新判断类型为: PPT`);
+    } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(extension)) {
+      fileType = FileType.VIDEO;
+      console.log(`根据文件名重新判断类型为: VIDEO`);
+    }
+  }
   
   // 创建初始结果
   let result: ProcessResult = {
@@ -206,6 +277,20 @@ export const processFile = async (filePath: string): Promise<ProcessResult> => {
         break;
       case FileType.VIDEO:
         knowledgePoints = await processVideoFile(filePath);
+        break;
+      case FileType.OTHER:
+        // 尝试猜测文件类型并处理
+        if (fileName.toLowerCase().includes('pdf')) {
+          knowledgePoints = await processPdfFile(filePath);
+        } else if (fileName.toLowerCase().includes('ppt')) {
+          knowledgePoints = await processPptFile(filePath);
+        } else if (fileName.toLowerCase().includes('video') || 
+                  fileName.toLowerCase().includes('mp4') || 
+                  fileName.toLowerCase().includes('avi')) {
+          knowledgePoints = await processVideoFile(filePath);
+        } else {
+          throw new Error(`无法确定文件类型: ${fileName}`);
+        }
         break;
       default:
         throw new Error(`不支持的文件类型: ${fileType}`);
