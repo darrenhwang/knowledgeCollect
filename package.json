@@ -1,0 +1,86 @@
+{
+  "name": "knowledge-collect",
+  "version": "0.1.0",
+  "description": "知识收集与教育应用 - 提取PPT、PDF和视频内容，建立知识库并生成教育题目",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "dev:react": "vite",
+    "dev:electron": "echo '暂时禁用Electron，仅使用Vite开发服务器'",
+    "build": "tsc && vite build",
+    "build:win": "vite build && electron-builder --win",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:linux": "vite build && electron-builder --linux",
+    "serve": "vite preview"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "@reduxjs/toolkit": "^1.9.5",
+    "ant-design": "^1.0.0",
+    "antd": "^5.24.5",
+    "axios": "^1.4.0",
+    "better-sqlite3": "^8.4.0",
+    "electron-store": "^8.1.0",
+    "ffmpeg-static": "^5.1.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "got": "^12.6.0",
+    "lodash": "^4.17.21",
+    "node-stream-zip": "^1.15.0",
+    "openai": "^3.3.0",
+    "pdfjs-dist": "^3.7.107",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-redux": "^8.0.7",
+    "react-router-dom": "^6.11.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.21",
+    "@types/lodash": "^4.14.195",
+    "@types/react": "^18.2.9",
+    "@types/react-dom": "^18.2.4",
+    "@typescript-eslint/eslint-plugin": "^5.59.9",
+    "@typescript-eslint/parser": "^5.59.9",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^8.2.2",
+    "electron": "^25.0.1",
+    "electron-builder": "^24.4.0",
+    "eslint": "^8.42.0",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "typescript": "^5.8.2",
+    "vite": "^4.5.10",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "appId": "com.knowledge.collect",
+    "productName": "知识收集与教育应用",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "build/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
+  }
+}
